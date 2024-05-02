@@ -12,6 +12,7 @@ POSITION: int = 0
 START: int = 0
 
 bot = TeleBot(TOKEN)
+user_state = {}
 
 
 @bot.message_handler(commands=['start'])
@@ -33,6 +34,8 @@ def bot_send_message(message: types.Message):
         for word_ in general_words:
             session.add(WordsUsers(word=word_, user_id=pk_user))
             session.commit()
+    global START
+    START = 1
     menu(message)
 
 
@@ -244,11 +247,13 @@ def get_statistics(message: types.Message):
     else:
         START = 0
     words_user = [word[0] + '\n' for word in session.query(WordsUsers.word).filter(WordsUsers.user_id == user_id).all()]
-
+    markup = types.ReplyKeyboardMarkup()
+    back = types.KeyboardButton(text='🔙 Назад')
+    markup.add(back)
     if count_word_user > 0:
         bot.send_message(message.chat.id, text=f'Количество слов ➡️ {count_word_user} ☺️:\n'
                                                f'{"➖" * 10}\n'
-                                               f'{"".join([word for word in words_user])}')
+                                               f'{"".join([word for word in words_user])}', reply_markup=markup)
     else:
         bot.send_message(message.chat.id, text='Список пустой! 😔')
 
@@ -259,27 +264,29 @@ def handler_all_message(message: types.Message):
     :param message:
     :return:
     """
-    if message.text == '▶️ Начать':
+    user_state[message.chat.id] = message.text
+
+    if user_state[message.chat.id] == '▶️ Начать':
         global START
+        get_statistics(message)
         if START == 1:
             process_bot(message)
         else:
             bot.send_message(message.chat.id, text='⚠️ У тебя должно быть минимум 4 слова.\nДобавьте слова!')
             menu(message)
 
-    elif message.text == '📈 Статистика':
+    elif user_state[message.chat.id] == '📈 Статистика':
         get_statistics(message)
+
+    elif user_state[message.chat.id] == '🔙 Назад':
         menu(message)
 
-    elif message.text == '🔙 Назад':
-        menu(message)
-
-    elif message.text == '➕ Добавить слово':
-        bot.send_message(message.chat.id, text='⌨️ Напиши слово которое хочешь изучать!\nНа Русском языке 🇷🇺')
+    elif user_state[message.chat.id] == '➕ Добавить слово':
+        bot.send_message(message.chat.id, text='⌨️ Напиши слово которое хочешь изучать!\nНа Русском языке 🇷🇺', reply_markup=types.ReplyKeyboardRemove())
         bot.register_next_step_handler(message, add_new_word)
 
-    elif message.text == '❌ Удалить слово':
-        bot.send_message(message.chat.id, text='⌨️ Напиши слово которое хочешь удалить!\nНа Русском языке 🇷🇺')
+    elif user_state[message.chat.id] == '❌ Удалить слово':
+        bot.send_message(message.chat.id, text='⌨️ Напиши слово которое хочешь удалить!\nНа Русском языке 🇷🇺', reply_markup=types.ReplyKeyboardRemove())
         bot.register_next_step_handler(message, del_word)
     else:
         if POSITION == 1:
